@@ -1,53 +1,68 @@
-# AI-Powered Code Reviewer 🤖🔍
+# AI-Powered Code Reviewer
 
-An enterprise-grade, multi-model automated code review system built for modern software engineering teams. It leverages advanced LLMs to analyze pull requests, detect security vulnerabilities, ensure code style adherence, and provide actionable architectural feedback.
+A production-oriented FastAPI service that turns a pull-request diff into structured, CI-friendly findings. It combines **deterministic security guardrails** with an optional **OpenAI-compatible LLM provider**.
 
-## 🚀 Key Features
+## Why this project is credible
 
-- **Automated PR Analysis**: Integrates directly with GitHub Actions and Webhooks to review pull requests instantly upon opening or updating.
-- **Security Vulnerability Scanning**: Detects OWASP Top 10 vulnerabilities, hardcoded secrets, and unsafe dependency usage.
-- **Architectural Compliance**: Evaluates code changes against defined design patterns and domain boundaries.
-- **Customizable Rulesets**: Easily configure custom review prompts and strictness levels for different repositories.
+- Deterministic checks run without credentials and are easy to test.
+- Findings include rule ID, severity, file, line, message, and remediation.
+- Provider selection is explicit (`heuristic` by default, `openai` when configured).
+- The service fails closed with a clear `502` if an external provider is unavailable.
+- GitHub Actions runs tests and Ruff on every push and pull request.
 
-## 🛠️ Tech Stack
+## Quick start
 
-- **Core**: Python 3.11, FastAPI, Pydantic v2
-- **LLM Integration**: OpenAI, Anthropic, and local open-source models via unified abstraction
-- **CI/CD**: GitHub Actions, Docker
-- **Testing**: Pytest, Ruff for linting
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
 
-## 📦 Getting Started
+Open `http://localhost:8000/docs` for interactive API documentation.
 
-### Prerequisites
+## Review a diff
 
-- Python 3.11+
-- Poetry or pip
-- GitHub Personal Access Token
+```bash
+curl -X POST http://localhost:8000/review \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "repo_url": "https://github.com/example/repo",
+    "pr_number": 42,
+    "author": "octocat",
+    "diff": "+++ b/app.py\n+result = eval(user_input)\n"
+  }'
+```
 
-### Installation
+The default heuristic provider detects hard-coded credentials, dynamic code execution, shell command risks, and SQL string interpolation. Findings use a stable JSON schema that can be converted to GitHub Checks or review comments.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/tengen-0/ai-code-reviewer.git
-   cd ai-code-reviewer
-   ```
+## Optional LLM analysis
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+Copy `.env.example` to `.env` and set:
 
-3. Set up environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your API keys
-   ```
+```dotenv
+REVIEW_PROVIDER=openai
+OPENAI_API_KEY=your_key
+OPENAI_MODEL=gpt-4o-mini
+# Optional for an OpenAI-compatible gateway:
+# OPENAI_API_BASE=https://api.openai.com/v1
+```
 
-4. Run the service:
-   ```bash
-   uvicorn main:app --reload
-   ```
+The LLM supplements the review; keep deterministic checks in a separate CI job for high-confidence gating.
 
-## 📄 License
+## Test and lint
 
-Distributed under the MIT License. See `LICENSE` for more information.
+```bash
+pytest -q
+ruff check main.py test_main.py
+```
+
+## Project layout
+
+- `main.py` — API models, provider abstraction, heuristic engine, and routes.
+- `test_main.py` — endpoint and detection regression tests.
+- `.github/workflows/ci.yml` — reproducible test/lint workflow.
+
+## License
+
+MIT
